@@ -1,0 +1,3 @@
+git+https://github.com/jtgrassie/py-cryptonight.git@CNv2#egg=py-cryptonight
+requests
+
