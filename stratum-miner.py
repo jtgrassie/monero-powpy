@@ -115,7 +115,12 @@ def worker(q, s):
         blob = job.get('blob')
         target = job.get('target')
         job_id = job.get('job_id')
-        print('New job with target: {}'.format(target))
+        height = job.get('height')
+        block_major = int(blob[:2], 16)
+        cnv = 0
+        if block_major >= 7:
+            cnv = block_major - 6
+        print('New job with target: {}, CNv{}, height: {}'.format(target, cnv, height))
         target = struct.unpack('I', binascii.unhexlify(target))[0]
         if target >> 32 == 0:
             target = int(0xFFFFFFFFFFFFFFFF / int(0xFFFFFFFF / target))
@@ -123,7 +128,7 @@ def worker(q, s):
 
         while 1:
             bin = pack_nonce(blob, nonce)
-            hash = pycryptonight.cn_slow_hash(bin, 2)
+            hash = pycryptonight.cn_slow_hash(bin, cnv, 0, height)
             hash_count += 1
             sys.stdout.write('.')
             sys.stdout.flush()

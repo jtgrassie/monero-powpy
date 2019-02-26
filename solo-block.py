@@ -67,6 +67,11 @@ def main():
     btb = result.get('blocktemplate_blob')
     diff = result.get('difficulty')
     print('Target difficulty: {}'.format(diff))
+    height = result.get('height')
+    block_major = int(btb[:2], 16)
+    cnv = 0
+    if block_major >= 7:
+        cnv = block_major - 6
 
     nonce = 1
     hash_count = 0
@@ -75,7 +80,7 @@ def main():
     try:
         while 1:
             bin = pack_nonce(bhb, nonce)
-            hash = pycryptonight.cn_slow_hash(bin, 2)
+            hash = pycryptonight.cn_slow_hash(bin, cnv, 0, height)
             hash_count += 1
             sys.stdout.write('.')
             sys.stdout.flush()
