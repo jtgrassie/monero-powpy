@@ -31,6 +31,7 @@ import socket
 import select
 import binascii
 import pycryptonight
+import pyrx
 import struct
 import json
 import sys
@@ -120,7 +121,11 @@ def worker(q, s):
         cnv = 0
         if block_major >= 7:
             cnv = block_major - 6
-        print('New job with target: {}, CNv{}, height: {}'.format(target, cnv, height))
+        if cnv > 5:
+            seed_hash = binascii.unhexlify(job.get('seed_hash'))
+            print('New job with target: {}, RandomX, height: {}'.format(target, height))
+        else:
+            print('New job with target: {}, CNv{}, height: {}'.format(target, cnv, height))
         target = struct.unpack('I', binascii.unhexlify(target))[0]
         if target >> 32 == 0:
             target = int(0xFFFFFFFFFFFFFFFF / int(0xFFFFFFFF / target))
@@ -128,7 +133,10 @@ def worker(q, s):
 
         while 1:
             bin = pack_nonce(blob, nonce)
-            hash = pycryptonight.cn_slow_hash(bin, cnv, 0, height)
+            if cnv > 5:
+                hash = pyrx.get_rx_hash(bin, seed_hash, height)
+            else:
+                hash = pycryptonight.cn_slow_hash(bin, cnv, 0, height)
             hash_count += 1
             sys.stdout.write('.')
             sys.stdout.flush()

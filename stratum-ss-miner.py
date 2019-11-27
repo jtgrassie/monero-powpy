@@ -32,6 +32,7 @@ import socket
 import select
 import binascii
 import pycryptonight
+import pyrx
 import struct
 import json
 import sys
@@ -90,11 +91,11 @@ def main():
                 print('Login ID: {}'.format(client_id))
                 job = result.get('job')
                 job['client_id'] = client_id
-                job['blob'], job['height'] = get_set_template(job, client_id, s)
+                job['blob'], job['height'], job['seed_hash'] = get_set_template(job, client_id, s)
                 q.put(job)
             elif method and method == 'job' and len(client_id):
                 job = params
-                job['blob'], job['height'] = get_set_template(job, client_id, s)
+                job['blob'], job['height'], job['seed_hash'] = get_set_template(job, client_id, s)
                 q.put(job)
     except KeyboardInterrupt:
         print('{}Exiting'.format(os.linesep))
@@ -114,6 +115,7 @@ def get_set_template(job, cid, s):
     extra = job.get('extra_nonce')
     wallet = job.get('pool_wallet')
     job_id = job.get('job_id')
+    seed_hash = job.get('seed_hash')
     payload = {
         'jsonrpc':'2.0',
         'id':'0',
@@ -137,14 +139,16 @@ def get_set_template(job, cid, s):
             'blob': result.get('blocktemplate_blob'),
             'height': result.get('height'),
             'difficulty': result.get('difficulty'),
-            'prev_hash': result.get('prev_hash')
+            'prev_hash': result.get('prev_hash'),
+            'seed_hash': result.get('seed_hash'),
+            'next_seed_hash': result.get('next_seed_hash')
         },
         'id':1
     }
     print('Sending block template to pool')
     s.sendall(str(json.dumps(payload)+'\n').encode('utf-8'))
     select.select([s], [], [], 15)
-    return result.get('blockhashing_blob'), result.get('height')
+    return result.get('blockhashing_blob'), result.get('height'), result.get('seed_hash')
 
 def worker(q, s):
     started = time.time()
@@ -162,7 +166,11 @@ def worker(q, s):
         cnv = 0
         if block_major >= 7:
             cnv = block_major - 6
-        print('New job with target: {}, CNv{}, height: {}'.format(target, cnv, height))
+        if cnv > 5:
+            seed_hash = binascii.unhexlify(job.get('seed_hash'))
+            print('New job with target: {}, RandomX, height: {}'.format(target, height))
+        else:
+            print('New job with target: {}, CNv{}, height: {}'.format(target, cnv, height))
         target = struct.unpack('I', binascii.unhexlify(target))[0]
         if target >> 32 == 0:
             target = int(0xFFFFFFFFFFFFFFFF / int(0xFFFFFFFF / target))
@@ -170,7 +178,10 @@ def worker(q, s):
 
         while 1:
             bin = pack_nonce(blob, nonce)
-            hash = pycryptonight.cn_slow_hash(bin, cnv, 0, height)
+            if cnv > 5:
+                hash = pyrx.get_rx_hash(bin, seed_hash, height)
+            else:
+                hash = pycryptonight.cn_slow_hash(bin, cnv, 0, height)
             hash_count += 1
             sys.stdout.write('.')
             sys.stdout.flush()
