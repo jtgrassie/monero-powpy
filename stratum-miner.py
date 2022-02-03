@@ -27,6 +27,7 @@
 #  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import argparse
 import socket
 import select
 import binascii
@@ -44,6 +45,7 @@ pool_host = 'monerop.com'
 pool_port = 4242
 pool_pass = 'xx'
 wallet_address = '42ydzcV2cJxGzKpmZMbsmtahZUhprCspgP9pBYoDk5F5HGUYTCBY3Sn83zTcm5yYeVPYsvikWim35ZajZqo5ReBPFg2CF79'
+nicehash = False
 
 
 def main():
@@ -67,6 +69,7 @@ def main():
         'id':1
     }
     print('Logging into pool: {}:{}'.format(pool_host, pool_port))
+    print('Using NiceHash mode: {}'.format(nicehash))
     s.sendall(str(json.dumps(login)+'\n').encode('utf-8'))
 
     try:
@@ -99,8 +102,12 @@ def main():
 def pack_nonce(blob, nonce):
     b = binascii.unhexlify(blob)
     bin = struct.pack('39B', *bytearray(b[:39]))
-    bin += struct.pack('I', nonce)
-    bin += struct.pack('{}B'.format(len(b)-43), *bytearray(b[43:]))
+    if nicehash:
+        bin += struct.pack('I', nonce & 0x00ffffff)[:3]
+        bin += struct.pack('{}B'.format(len(b)-42), *bytearray(b[42:]))
+    else:
+        bin += struct.pack('I', nonce)
+        bin += struct.pack('{}B'.format(len(b)-43), *bytearray(b[43:]))
     return bin
 
 
@@ -146,6 +153,8 @@ def worker(q, s):
                 elapsed = time.time() - started
                 hr = int(hash_count / elapsed)
                 print('{}Hashrate: {} H/s'.format(os.linesep, hr))
+                if nicehash:
+                    nonce = struct.unpack('I', bin[39:43])[0]
                 submit = {
                     'method':'submit',
                     'params': {
@@ -164,5 +173,16 @@ def worker(q, s):
             nonce += 1
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--nicehash', action='store_true', help='NiceHash mode')
+    parser.add_argument('--host', action='store', help='Pool host')
+    parser.add_argument('--port', action='store', help='Pool port')
+    args = parser.parse_args()
+    if args.nicehash:
+        nicehash = True
+    if args.host:
+        pool_host = args.host
+    if args.port:
+        pool_port = int(args.port)
     main()
 
