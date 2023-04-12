@@ -87,6 +87,7 @@ def main():
                 hash = pyrx.get_rx_hash(bin, seed_hash, height)
             else:
                 hash = pycryptonight.cn_slow_hash(bin, cnv, 0, height)
+            hash = hash[::-1]
             hash_count += 1
             sys.stdout.write('.')
             sys.stdout.flush()
